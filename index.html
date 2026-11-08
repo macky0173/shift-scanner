@@ -8,8 +8,8 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 16px; background: #f1f5f9; color: #0f172a; }
     .card { background: white; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     h1 { font-size: 1.15rem; margin: 0 0 12px; }
-    label { font-size: 0.85rem; color: #475569; display: block; margin-bottom: 4px; font-weight: 600; }
-    input[type="password"], input[type="text"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 0.9rem; margin-bottom: 10px; }
+    label { font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px; }
+    input[type="password"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; margin-bottom: 8px; }
     .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: bold; cursor: pointer; text-align: center; box-sizing: border-box; }
     .btn-primary { background: #2563eb; color: white; margin-bottom: 8px; }
     .btn-outline { background: #ffffff; color: #2563eb; border: 2px solid #2563eb; margin-bottom: 8px; }
@@ -26,14 +26,10 @@
 <body>
 
   <div class="card">
-    <h1>1. 初期設定</h1>
-    <label for="apiKey">Gemini APIキー</label>
+    <h1>1. APIキーの設定</h1>
+    <label for="apiKey">Google AI StudioのAPIキー</label>
     <input type="password" id="apiKey" placeholder="AIzaSy..." />
-    
-    <label for="gasUrl">Google Apps Script ウェブアプリURL</label>
-    <input type="text" id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec" />
-    
-    <button class="btn btn-primary" onclick="saveSettings()" style="padding: 10px; font-size: 0.85rem;">設定を端末に保存</button>
+    <button class="btn btn-primary" onclick="saveKey()" style="padding: 8px; font-size: 0.85rem;">キーを端末に保存</button>
   </div>
 
   <div class="card">
@@ -49,7 +45,7 @@
     </button>
     
     <div class="note">
-      ※ 画像データはブラウザのメモリ内でのみ一時処理され、解析後に即座に消去されます。
+      ※ どちらの方法でも画像データはブラウザのメモリ内でのみ一時処理され、解析後に即座に消去されます。アプリ内・サーバー上への保存や蓄積は一切行われません。
     </div>
     <div id="status">準備完了</div>
   </div>
@@ -62,7 +58,7 @@
       </thead>
       <tbody id="resultBody"></tbody>
     </table>
-    <button class="btn btn-secondary" id="syncBtn" onclick="syncToGoogleCalendar()">Googleカレンダーに直接一括登録</button>
+    <button class="btn btn-secondary" onclick="exportToCalendar()">カレンダーに一括追加</button>
   </div>
 
   <script>
@@ -70,26 +66,19 @@
 
     window.onload = () => {
       const savedKey = localStorage.getItem("GEMINI_KEY");
-      const savedGas = localStorage.getItem("GAS_URL");
       if (savedKey) document.getElementById("apiKey").value = savedKey;
-      if (savedGas) document.getElementById("gasUrl").value = savedGas;
     };
 
-    function saveSettings() {
+    function saveKey() {
       const key = document.getElementById("apiKey").value.trim();
-      const gas = document.getElementById("gasUrl").value.trim();
-      if (!key) return alert("Gemini APIキーを入力してください");
-      if (!gas) return alert("GASのウェブアプリURLを入力してください");
-
+      if (!key) return alert("APIキーを入力してください");
       localStorage.setItem("GEMINI_KEY", key);
-      localStorage.setItem("GAS_URL", gas);
-      alert("設定を端末に保存しました。次回以降は入力不要です。");
+      alert("端末に保存しました。次回以降は入力不要です。");
     }
 
     function triggerInput(id) {
       const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
-      const gas = localStorage.getItem("GAS_URL") || document.getElementById("gasUrl").value.trim();
-      if (!key || !gas) return alert("先にAPIキーとGASのURLを設定・保存してください。");
+      if (!key) return alert("先にAPIキーを入力して保存してください。");
       document.getElementById(id).click();
     }
 
@@ -114,7 +103,7 @@
         base64Image = await toBase64(file);
         const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
         
-        shifts = await analyzeWithGeminiWithRetry(base64Image, file.type, key);
+        shifts = await analyzeWithGemini(base64Image, file.type, key);
         
         renderTable(shifts);
         status.innerText = `解析成功: ${shifts.length}件の勤務を検出しました。`;
@@ -138,32 +127,7 @@
       });
     }
 
-    // 混雑時に自動リトライを行う制御関数
-    async function analyzeWithGeminiWithRetry(base64Data, mimeType, apiKey) {
-      const maxRetries = 3;
-      const statusEl = document.getElementById("status");
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          return await callGeminiApi(base64Data, mimeType, apiKey);
-        } catch (err) {
-          const errMsg = err.message || "";
-          const isHighDemand = errMsg.includes("high demand") || errMsg.includes("503") || errMsg.includes("429");
-
-          if (isHighDemand && attempt < maxRetries) {
-            const waitSec = attempt * 3; // 1回目: 3秒待機, 2回目: 6秒待機
-            statusEl.innerText = `サーバー混雑中（高負荷）です。${waitSec}秒後に自動で再試行します (${attempt}/${maxRetries}回目)...`;
-            await new Promise(resolve => setTimeout(resolve, waitSec * 1000));
-            statusEl.innerText = `再試行中 (${attempt + 1}/${maxRetries}回目)...`;
-          } else {
-            throw err;
-          }
-        }
-      }
-    }
-
-    // Gemini API 呼び出し本体
-    async function callGeminiApi(base64Data, mimeType, apiKey) {
+    async function analyzeWithGemini(base64Data, mimeType, apiKey) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
@@ -235,30 +199,42 @@
       });
     }
 
-    async function syncToGoogleCalendar() {
+    function exportToCalendar() {
       if (!shifts.length) return;
 
-      const gasUrl = localStorage.getItem("GAS_URL") || document.getElementById("gasUrl").value.trim();
-      if (!gasUrl) return alert("GASのURLが設定されていません。");
+      let ics = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//ShiftScanner//JA",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH"
+      ];
 
-      const syncBtn = document.getElementById("syncBtn");
-      syncBtn.disabled = true;
-      syncBtn.innerText = "Googleカレンダーに同期中...";
+      shifts.forEach(s => {
+        const d = s.date.replace(/-/g, "");
+        const st = s.startTime.replace(":", "") + "00";
+        const et = s.endTime.replace(":", "") + "00";
+        
+        ics.push(
+          "BEGIN:VEVENT",
+          `UID:${Date.now()}-${Math.random().toString(36).substr(2, 9)}@shift`,
+          `DTSTAMP:${d}T000000Z`,
+          `DTSTART:${d}T${st}`,
+          `DTEND:${d}T${et}`,
+          `SUMMARY:${s.title}`,
+          "END:VEVENT"
+        );
+      });
 
-      try {
-        await fetch(gasUrl, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({ shifts: shifts })
-        });
+      ics.push("END:VCALENDAR");
 
-        alert(`Googleカレンダーへの同期リクエストを送信しました！\n（${shifts.length}件の予定）`);
-      } catch (err) {
-        alert("同期中にエラーが発生しました: " + err.message);
-      } finally {
-        syncBtn.disabled = false;
-        syncBtn.innerText = "Googleカレンダーに直接一括登録";
-      }
+      const blob = new Blob([ics.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "shift.ics";
+      a.click();
+      URL.revokeObjectURL(url);
     }
   </script>
 </body>
