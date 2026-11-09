@@ -100,7 +100,6 @@
       let base64Image = null;
 
       try {
-        // iPhoneの高解像度写真によるメモリ落ち/通信遮断を防ぐためリサイズ圧縮
         base64Image = await resizeAndConvertToBase64(file, 1600);
         status.innerText = "勤務表を解析中（森川様の行とシフト定義を突き合わせています）...";
 
@@ -120,7 +119,6 @@
       }
     }
 
-    // 画像の長辺を指定サイズに縮小し、JPEGでBase64化する関数
     function resizeAndConvertToBase64(file, maxDimension) {
       return new Promise((resolve, reject) => {
         const img = new Image();
@@ -144,7 +142,6 @@
           const ctx = canvas.getContext("2d");
           ctx.drawImage(img, 0, 0, width, height);
 
-          // 品質0.82のJPEGに圧縮（文字認識の精細さを維持しつつサイズを激減させる）
           const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
           resolve(dataUrl.split(",")[1]);
         };
@@ -154,8 +151,7 @@
     }
 
     async function analyzeWithGemini(base64Data, mimeType, apiKey) {
-      // 安定動作する gemini-1.5-flash エンドポイント
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
 
