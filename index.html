@@ -106,7 +106,7 @@
         shifts = await analyzeWithGemini(base64Image, file.type, key);
         
         renderTable(shifts);
-        status.innerText = `解析成功: ${shifts.length}件の勤務を検出しました。`;
+        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました。`;
         document.getElementById("resultCard").style.display = "block";
       } catch (err) {
         status.innerText = "エラー: " + err.message;
@@ -141,13 +141,16 @@
    左側の氏名列から「森川 瑛理」（文字間のスペースの有無は問いません）の行を特定してください。
 4. 日付とシフトの抽出:
    日付（1〜30/31）と、森川瑛理さんの行にある各セルの記号を突き合わせます。
-   ※重要: 「-（ハイフン）」、「休」、「有」、「FB」など、右上に具体的な時間定義が存在しないセルは予定がないものとして【必ずリストから除外】してください。
-   右上に時間定義が存在する記号の日のみを抽出し、開始時刻と終了時刻を割り当ててください。
+   - シフト記号のセル：「(記号)勤」として抽出し、開始時刻と終了時刻を割り当ててください。
+   - 「-（ハイフン）」および「休」のセル：「休み」として必ず抽出してください。
+   - 「有」のセル：「有休」として必ず抽出してください。
+   ※「休み」や「有休」を除外せず、必ずリストに含めてください。
+   ※上記以外の「FB」など、シフトでも休みでもない予定のみを除外してください。
 
 以上の結果を、指定されたJSONスキーマに従って出力してください。
 - dateは "YYYY-MM-DD" 形式（月日は必ず2桁で0埋め、例: 2026-11-03）
-- titleは "シフト(記号)" 形式（例: シフト(A)）
-- startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）`;
+- titleは "(記号)勤"、"休み"、"有休" のいずれか（例: (A)勤）
+- startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）。休みや有休の場合は "00:00" としてください。`;
 
       const payload = {
         contents: [{
@@ -164,7 +167,7 @@
               type: "OBJECT",
               properties: {
                 date: { type: "STRING", description: "YYYY-MM-DD" },
-                title: { type: "STRING", description: "例: シフト(A)" },
+                title: { type: "STRING", description: "例: (A)勤, 休み, 有休" },
                 startTime: { type: "STRING", description: "HH:mm" },
                 endTime: { type: "STRING", description: "HH:mm" }
               },
@@ -194,7 +197,12 @@
       tbody.innerHTML = "";
       data.forEach(item => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${item.date}</td><td>${item.title}</td><td>${item.startTime}〜${item.endTime}</td>`;
+        
+        // 休み・有休の場合は時間帯を「終日」と表示する
+        const isOff = (item.title === "休み" || item.title === "有休");
+        const timeStr = isOff ? "終日" : `${item.startTime}〜${item.endTime}`;
+        
+        tr.innerHTML = `<td>${item.date}</td><td>${item.title}</td><td>${timeStr}</td>`;
         tbody.appendChild(tr);
       });
     }
@@ -212,15 +220,34 @@
 
       shifts.forEach(s => {
         const d = s.date.replace(/-/g, "");
-        const st = s.startTime.replace(":", "") + "00";
-        const et = s.endTime.replace(":", "") + "00";
         
         ics.push(
           "BEGIN:VEVENT",
           `UID:${Date.now()}-${Math.random().toString(36).substr(2, 9)}@shift`,
-          `DTSTAMP:${d}T000000Z`,
-          `DTSTART:${d}T${st}`,
-          `DTEND:${d}T${et}`,
+          `DTSTAMP:${d}T000000Z`
+        );
+
+        if (s.title === "休み" || s.title === "有休") {
+          // 終日イベントとして登録（カレンダーアプリで0:00〜0:00とならないようにする処理）
+          const dateObj = new Date(s.date);
+          dateObj.setDate(dateObj.getDate() + 1);
+          const nextD = dateObj.toISOString().split('T')[0].replace(/-/g, "");
+          
+          ics.push(
+            `DTSTART;VALUE=DATE:${d}`,
+            `DTEND;VALUE=DATE:${nextD}`
+          );
+        } else {
+          // 通常のシフト（時間指定）
+          const st = s.startTime.replace(":", "") + "00";
+          const et = s.endTime.replace(":", "") + "00";
+          ics.push(
+            `DTSTART:${d}T${st}`,
+            `DTEND:${d}T${et}`
+          );
+        }
+        
+        ics.push(
           `SUMMARY:${s.title}`,
           "END:VEVENT"
         );
