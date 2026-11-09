@@ -128,7 +128,8 @@
     }
 
     async function analyzeWithGemini(base64Data, mimeType, apiKey) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+      // モデル名を gemini-3.8-flash に更新
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
 
