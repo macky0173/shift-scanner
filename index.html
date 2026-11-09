@@ -106,7 +106,7 @@
         shifts = await analyzeWithGemini(base64Image, file.type, key);
         
         renderTable(shifts);
-        status.innerText = `解析成功: ${shifts.length}件の勤務を検出しました。`;
+        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました。`;
         document.getElementById("resultCard").style.display = "block";
       } catch (err) {
         status.innerText = "エラー: " + err.message;
@@ -128,7 +128,7 @@
     }
 
     async function analyzeWithGemini(base64Data, mimeType, apiKey) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
 
@@ -139,15 +139,18 @@
    ※大文字と小文字（Aとa、Fとfなど）、記号付き（A★、N△）、併記（n/N、e/E）を厳密に区別してください。
 3. 対象者の特定:
    左側の氏名列から「森川 瑛理」（文字間のスペースの有無は問いません）の行を特定してください。
-4. 日付とシフトの抽出:
+4. 日付とシフトの抽出・判定:
    日付（1〜30/31）と、森川瑛理さんの行にある各セルの記号を突き合わせます。
-   ※重要: 「-（ハイフン）」、「休」、「有」、「FB」など、右上に具体的な時間定義が存在しないセルは予定がないものとして【必ずリストから除外】してください。
-   右上に時間定義が存在する記号の日のみを抽出し、開始時刻と終了時刻を割り当ててください。
+   - セルが「-（ハイフン）」または「休」の場合:
+     title: "休み", isAllDay: true, startTime: "", endTime: ""
+   - セルが「有」の場合:
+     title: "有休", isAllDay: true, startTime: "", endTime: ""
+   - 右上の時間定義に該当する記号の場合:
+     title: "（記号）勤"（例: A勤、N勤、A★勤、f勤 のように該当する記号の後ろに「勤」を付ける）, isAllDay: false, startTime: "HH:mm", endTime: "HH:mm"
+   - それ以外の定義のない記号（FB等）や空欄は除外してください。
 
 以上の結果を、指定されたJSONスキーマに従って出力してください。
-- dateは "YYYY-MM-DD" 形式（月日は必ず2桁で0埋め、例: 2026-11-03）
-- titleは "シフト(記号)" 形式（例: シフト(A)）
-- startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）`;
+- dateは "YYYY-MM-DD" 形式（月日は必ず2桁で0埋め、例: 2026-11-03）`;
 
       const payload = {
         contents: [{
@@ -164,11 +167,12 @@
               type: "OBJECT",
               properties: {
                 date: { type: "STRING", description: "YYYY-MM-DD" },
-                title: { type: "STRING", description: "例: シフト(A)" },
-                startTime: { type: "STRING", description: "HH:mm" },
-                endTime: { type: "STRING", description: "HH:mm" }
+                title: { type: "STRING", description: "例: A勤, 休み, 有休" },
+                isAllDay: { type: "BOOLEAN", description: "終日予定の場合はtrue" },
+                startTime: { type: "STRING", description: "HH:mm形式。終日予定の場合は空文字" },
+                endTime: { type: "STRING", description: "HH:mm形式。終日予定の場合は空文字" }
               },
-              required: ["date", "title", "startTime", "endTime"]
+              required: ["date", "title", "isAllDay", "startTime", "endTime"]
             }
           }
         }
@@ -194,7 +198,8 @@
       tbody.innerHTML = "";
       data.forEach(item => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${item.date}</td><td>${item.title}</td><td>${item.startTime}〜${item.endTime}</td>`;
+        const timeText = item.isAllDay ? "終日" : `${item.startTime}〜${item.endTime}`;
+        tr.innerHTML = `<td>${item.date}</td><td>${item.title}</td><td>${timeText}</td>`;
         tbody.appendChild(tr);
       });
     }
@@ -212,18 +217,39 @@
 
       shifts.forEach(s => {
         const d = s.date.replace(/-/g, "");
-        const st = s.startTime.replace(":", "") + "00";
-        const et = s.endTime.replace(":", "") + "00";
-        
-        ics.push(
-          "BEGIN:VEVENT",
-          `UID:${Date.now()}-${Math.random().toString(36).substr(2, 9)}@shift`,
-          `DTSTAMP:${d}T000000Z`,
-          `DTSTART:${d}T${st}`,
-          `DTEND:${d}T${et}`,
-          `SUMMARY:${s.title}`,
-          "END:VEVENT"
-        );
+        const uid = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}@shift`;
+
+        if (s.isAllDay) {
+          const nextDay = new Date(s.date + "T00:00:00");
+          nextDay.setDate(nextDay.getDate() + 1);
+          const endYear = nextDay.getFullYear();
+          const endMonth = String(nextDay.getMonth() + 1).padStart(2, "0");
+          const endDay = String(nextDay.getDate()).padStart(2, "0");
+          const nextDayStr = `${endYear}${endMonth}${endDay}`;
+
+          ics.push(
+            "BEGIN:VEVENT",
+            `UID:${uid}`,
+            `DTSTAMP:${d}T000000Z`,
+            `DTSTART;VALUE=DATE:${d}`,
+            `DTEND;VALUE=DATE:${nextDayStr}`,
+            `SUMMARY:${s.title}`,
+            "END:VEVENT"
+          );
+        } else {
+          const st = s.startTime.replace(":", "") + "00";
+          const et = s.endTime.replace(":", "") + "00";
+
+          ics.push(
+            "BEGIN:VEVENT",
+            `UID:${uid}`,
+            `DTSTAMP:${d}T000000Z`,
+            `DTSTART:${d}T${st}`,
+            `DTEND:${d}T${et}`,
+            `SUMMARY:${s.title}`,
+            "END:VEVENT"
+          );
+        }
       });
 
       ics.push("END:VCALENDAR");
