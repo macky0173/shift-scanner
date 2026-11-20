@@ -18,8 +18,9 @@
     .btn-primary { background: #2563eb; color: white; margin-bottom: 8px; }
     .btn-outline { background: #ffffff; color: #2563eb; border: 2px solid #2563eb; margin-bottom: 8px; }
     .btn-secondary { background: #059669; color: white; margin-top: 12px; }
+    .btn-cancel { background: #fef2f2; color: #dc2626; border: 2px solid #fca5a5; padding: 11px; font-size: 0.9rem; margin-top: 10px; }
     .btn-add { background: #f8fafc; color: #334155; border: 1px dashed #94a3b8; padding: 10px; font-size: 0.85rem; margin-top: 10px; }
-    .btn:disabled { background: #94a3b8; border-color: #94a3b8; color: white; }
+    .btn:disabled { background: #94a3b8; border-color: #94a3b8; color: white; cursor: not-allowed; }
     .note { font-size: 0.75rem; color: #64748b; margin-top: 4px; line-height: 1.4; }
     #status { margin-top: 12px; font-size: 0.85rem; color: #475569; line-height: 1.4; font-weight: 500; }
 
@@ -124,6 +125,9 @@
       ※ 画像データはブラウザのメモリ内でのみリサイズ・一時処理され、アプリ内・サーバー上への保存は一切行われません。解析用データは直後に消去され、確認用プレビューもカレンダー追加時または画面を閉じた際に自動で破棄されます。
     </div>
     <div id="status">準備完了</div>
+    <button type="button" class="btn btn-cancel" id="btnCancel" onclick="cancelAnalysis()" style="display: none;">
+      ✕ 解析・リトライをキャンセル
+    </button>
   </div>
 
   <div class="card" id="resultCard" style="display: none;">
@@ -190,6 +194,7 @@
     let shifts = [];
     let previewObjectUrl = null;
     let currentZoom = 1;
+    let currentAbortController = null;
 
     window.onload = () => {
       const savedKey = localStorage.getItem("GEMINI_KEY");
@@ -205,9 +210,13 @@
       }
     };
 
-    // ページ離脱・リロード時にメモリ上のプレビューを確実に破棄
-    window.addEventListener("pagehide", () => clearPreview(false));
-    window.addEventListener("beforeunload", () => clearPreview(false));
+    // ページ離脱・リロード時に進行中の通信とメモリ上のプレビューを確実に破棄
+    const cleanupOnLeave = () => {
+      if (currentAbortController) currentAbortController.abort();
+      clearPreview(false);
+    };
+    window.addEventListener("pagehide", cleanupOnLeave);
+    window.addEventListener("beforeunload", cleanupOnLeave);
 
     document.getElementById("modelSelect").addEventListener("change", (e) => {
       localStorage.setItem("GEMINI_MODEL", e.target.value);
@@ -240,14 +249,42 @@
       document.getElementById(id).click();
     }
 
+    function cancelAnalysis() {
+      if (!currentAbortController) return;
+      document.getElementById("status").innerText = "解析をキャンセルしています...";
+      document.getElementById("btnCancel").disabled = true;
+      currentAbortController.abort();
+    }
+
+    function createAbortError() {
+      const err = new Error("Aborted");
+      err.name = "AbortError";
+      return err;
+    }
+
+    function isAbortError(err) {
+      return Boolean(err && (err.name === "AbortError" || err.message === "Aborted"));
+    }
+
     function formatBytes(bytes) {
       if (bytes < 1024) return `${bytes}B`;
       if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
       return `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
     }
 
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
+    function sleep(ms, signal) {
+      return new Promise((resolve, reject) => {
+        if (signal?.aborted) return reject(createAbortError());
+        const onAbort = () => {
+          clearTimeout(timer);
+          reject(createAbortError());
+        };
+        const timer = setTimeout(() => {
+          if (signal) signal.removeEventListener("abort", onAbort);
+          resolve();
+        }, ms);
+        if (signal) signal.addEventListener("abort", onAbort, { once: true });
+      });
     }
 
     function getRetryDelayMs(attempt, retryAfterHeader) {
@@ -262,19 +299,19 @@
           if (diff > 0) return Math.min(diff, 30000);
         }
       }
-      // 指数バックオフ（1回目: 約3秒、2回目: 約6秒、3回目: 約12秒）＋揺らぎ
       const baseMs = 3000 * Math.pow(2, attempt - 1);
       const jitterMs = Math.floor(Math.random() * 800);
       return baseMs + jitterMs;
     }
 
-    async function waitWithCountdown(totalMs, onTick) {
+    async function waitWithCountdown(totalMs, onTick, signal) {
       const endTime = Date.now() + totalMs;
       while (true) {
+        if (signal?.aborted) throw createAbortError();
         const leftMs = endTime - Date.now();
         if (leftMs <= 0) break;
         if (onTick) onTick(Math.ceil(leftMs / 1000));
-        await sleep(Math.min(1000, leftMs));
+        await sleep(Math.min(1000, leftMs), signal);
       }
     }
 
@@ -441,6 +478,7 @@
       const status = document.getElementById("status");
       const btnScan = document.getElementById("btnScan");
       const btnGallery = document.getElementById("btnGallery");
+      const btnCancel = document.getElementById("btnCancel");
 
       const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
       const modelId = document.getElementById("modelSelect").value || DEFAULT_MODEL;
@@ -449,14 +487,20 @@
       const thinkingLabel = thinkingLevel || "標準";
 
       clearPreview(false);
+      currentAbortController = new AbortController();
+      const { signal } = currentAbortController;
+
       btnScan.disabled = true;
       btnGallery.disabled = true;
+      btnCancel.disabled = false;
+      btnCancel.style.display = "block";
       status.innerText = "画像を送信サイズへ最適化（リサイズ・圧縮）中...";
 
       let prepared = null;
 
       try {
         prepared = await compressImage(file, qualityPreset);
+        if (signal.aborted) throw createAbortError();
 
         const sizeNote = prepared.compressed
           ? `${formatBytes(prepared.origBytes)} → ${formatBytes(prepared.compBytes)} / ${prepared.width}×${prepared.height}`
@@ -470,8 +514,11 @@
           key,
           modelId,
           thinkingLevel,
-          (msg) => { status.innerText = msg; }
+          (msg) => { status.innerText = msg; },
+          signal
         );
+
+        if (signal.aborted) throw createAbortError();
 
         setPreviewImage(prepared.blob);
         renderTable();
@@ -479,16 +526,23 @@
         document.getElementById("resultCard").style.display = "block";
       } catch (err) {
         clearPreview(false);
-        status.innerText = "エラー: " + err.message;
+        if (isAbortError(err) || signal.aborted) {
+          status.innerText = "解析をキャンセルしました。";
+        } else {
+          status.innerText = "エラー: " + err.message;
+        }
       } finally {
         if (prepared) {
           prepared.base64 = null;
           prepared.blob = null;
           prepared = null;
         }
+        currentAbortController = null;
         e.target.value = "";
         btnScan.disabled = false;
         btnGallery.disabled = false;
+        btnCancel.disabled = false;
+        btnCancel.style.display = "none";
       }
     }
 
@@ -501,7 +555,7 @@
       });
     }
 
-    async function analyzeWithGemini(base64Data, mimeType, apiKey, modelId, thinkingLevel, onStatusUpdate) {
+    async function analyzeWithGemini(base64Data, mimeType, apiKey, modelId, thinkingLevel, onStatusUpdate, signal) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
@@ -515,16 +569,17 @@
    左側の氏名列から「森川 瑛理」（文字間のスペースの有無は問いません）の行を特定してください。
 4. 日付とシフトの抽出:
    日付（1〜30/31）と、森川瑛理さんの行にある各セルの記号を突き合わせます。
-   - シフト記号のセル：「(記号)勤」として抽出し、開始時刻と終了時刻を割り当ててください。
+   - 右上に時間定義があるシフト記号のセル：「(記号)勤」として抽出し、対応する開始時刻と終了時刻を割り当ててください。
+   - 「FB」のセル：右上の時間定義の有無にかかわらず、必ず「(FB)勤」、開始時刻 "07:00"、終了時刻 "17:00" として抽出してください。
    - 「-（ハイフン）」および「休」のセル：「休み」として必ず抽出してください。
    - 「有」のセル：「有休」として必ず抽出してください。
-   ※「休み」や「有休」を除外せず、必ずリストに含めてください。
-   ※上記以外の「FB」など、シフトでも休みでもない予定のみを除外してください。
+   ※「FB」「休み」「有休」を除外せず、必ずリストに含めてください。
+   ※上記以外の、右上に時間定義が存在せず「FB」「-」「休」「有」にも該当しない予定のみを除外してください。
 
 以上の結果を、指定されたJSONスキーマに従って出力してください。
 - dateは "YYYY-MM-DD" 形式（月日は必ず2桁で0埋め、例: 2026-11-03）
-- titleは "(記号)勤"、"休み"、"有休" のいずれか（例: (A)勤）
-- startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）。休みや有休の場合は "00:00" としてください。`;
+- titleは "(記号)勤"（FBの場合は "(FB)勤"）、"休み"、"有休" のいずれか（例: (A)勤, (FB)勤）
+- startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）。FBは 07:00 と 17:00、休みや有休の場合は "00:00" としてください。`;
 
       const generationConfig = {
         response_mime_type: "application/json",
@@ -534,7 +589,7 @@
             type: "OBJECT",
             properties: {
               date: { type: "STRING", description: "YYYY-MM-DD" },
-              title: { type: "STRING", description: "例: (A)勤, 休み, 有休" },
+              title: { type: "STRING", description: "例: (A)勤, (FB)勤, 休み, 有休" },
               startTime: { type: "STRING", description: "HH:mm" },
               endTime: { type: "STRING", description: "HH:mm" }
             },
@@ -562,6 +617,8 @@
       let lastError = null;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (signal?.aborted) throw createAbortError();
+
         let retryAfterHeader = null;
         let shouldRetry = false;
         let reasonLabel = "";
@@ -574,7 +631,8 @@
           const res = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal
           });
 
           if (res.ok) {
@@ -604,10 +662,12 @@
               : `APIサーバー混雑 (${res.status})`;
             lastError = new Error(errMsg);
           } else {
-            // APIキー不正(400/401/403)やモデル名誤り(404)等はリトライせず即時エラー
             throw new Error(errMsg);
           }
         } catch (err) {
+          if (isAbortError(err) || signal?.aborted) {
+            throw createAbortError();
+          }
           if (!shouldRetry) {
             if (err instanceof TypeError) {
               shouldRetry = true;
@@ -626,7 +686,7 @@
             if (onStatusUpdate) {
               onStatusUpdate(`${reasonLabel}のため待機中... ${sec}秒後に自動リトライします（${nextAttempt}/${MAX_RETRIES}回目）`);
             }
-          });
+          }, signal);
           continue;
         }
 
