@@ -8,28 +8,71 @@
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 16px; background: #f1f5f9; color: #0f172a; }
     .card { background: white; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     h1 { font-size: 1.15rem; margin: 0 0 12px; }
-    label { font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px; }
-    input[type="password"] { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; margin-bottom: 8px; }
+    label { font-size: 0.85rem; color: #475569; display: block; margin-bottom: 6px; margin-top: 10px; }
+    label:first-of-type { margin-top: 0; }
+    input[type="password"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; margin-bottom: 8px; background: #ffffff; color: #0f172a; }
+    .setting-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    @media (max-width: 420px) { .setting-row { grid-template-columns: 1fr; gap: 0; } }
     .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: bold; cursor: pointer; text-align: center; box-sizing: border-box; }
     .btn-primary { background: #2563eb; color: white; margin-bottom: 8px; }
     .btn-outline { background: #ffffff; color: #2563eb; border: 2px solid #2563eb; margin-bottom: 8px; }
     .btn-secondary { background: #059669; color: white; margin-top: 12px; }
+    .btn-add { background: #f8fafc; color: #334155; border: 1px dashed #94a3b8; padding: 10px; font-size: 0.85rem; margin-top: 10px; }
     .btn:disabled { background: #94a3b8; border-color: #94a3b8; color: white; }
     .note { font-size: 0.75rem; color: #64748b; margin-top: 4px; line-height: 1.4; }
     #status { margin-top: 12px; font-size: 0.85rem; color: #475569; line-height: 1.4; font-weight: 500; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 0.85rem; }
-    th, td { border-bottom: 1px solid #e2e8f0; padding: 10px 6px; text-align: left; }
-    th { background: #f8fafc; color: #475569; }
+    .table-wrap { overflow-x: auto; margin-top: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; text-align: left; vertical-align: middle; }
+    th { background: #f8fafc; color: #475569; white-space: nowrap; }
+    .cell-input { width: 100%; padding: 6px 5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.82rem; font-family: inherit; background: #ffffff; color: #0f172a; }
+    .cell-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+    .date-input { min-width: 106px; }
+    .title-input { min-width: 68px; }
+    .time-group { display: flex; align-items: center; gap: 4px; }
+    .time-input { width: 82px; padding: 6px 4px; }
+    .time-sep { color: #64748b; font-size: 0.75rem; flex-shrink: 0; }
+    @media (max-width: 480px) {
+      .time-group { flex-direction: column; align-items: stretch; gap: 3px; }
+      .time-input { width: 100%; min-width: 78px; }
+      .time-sep { display: none; }
+    }
+    .all-day-badge { display: inline-block; padding: 5px 10px; border-radius: 6px; background: #e2e8f0; color: #334155; font-size: 0.78rem; font-weight: 600; text-align: center; }
+    .btn-del { background: #fee2e2; color: #dc2626; border: none; border-radius: 6px; width: 28px; height: 28px; font-size: 0.85rem; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .hidden-file { display: none; }
   </style>
 </head>
 <body>
 
   <div class="card">
-    <h1>1. APIキーの設定</h1>
+    <h1>1. API・モデル設定</h1>
+
     <label for="apiKey">Google AI StudioのAPIキー</label>
     <input type="password" id="apiKey" placeholder="AIzaSy..." />
-    <button class="btn btn-primary" onclick="saveKey()" style="padding: 8px; font-size: 0.85rem;">キーを端末に保存</button>
+
+    <div class="setting-row">
+      <div>
+        <label for="modelSelect">使用モデル</label>
+        <select id="modelSelect">
+          <option value="gemini-4-hydrogen">Gemini 4 Hydrogen（無料枠対応・高速）</option>
+          <option value="gemini-4-neon">Gemini 4 Neon（有料枠専用・高精度）</option>
+        </select>
+      </div>
+      <div>
+        <label for="thinkingLevel">思考レベル</label>
+        <select id="thinkingLevel">
+          <option value="">標準（モデル自動）</option>
+          <option value="low">低（高速・省コスト）</option>
+          <option value="medium">中（バランス）</option>
+          <option value="high">高（高精度・複雑な表向け）</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" onclick="saveSettings()" style="padding: 10px; font-size: 0.85rem;">設定を端末に保存</button>
+    <div class="note">
+      ※ モデルと思考レベルは変更時にも自動保存されます。Neonを利用する場合は、課金設定済みのAPIキーが必要です。
+    </div>
   </div>
 
   <div class="card">
@@ -52,28 +95,53 @@
 
   <div class="card" id="resultCard" style="display: none;">
     <h1>3. 抽出結果（森川 瑛理 様）</h1>
-    <table>
-      <thead>
-        <tr><th>日付</th><th>シフト名</th><th>時間帯</th></tr>
-      </thead>
-      <tbody id="resultBody"></tbody>
-    </table>
+    <div class="note">
+      ※ 各項目をタップして直接修正できます。「休み」「有休」にすると自動で終日扱いになります。
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>日付</th><th>シフト名</th><th>時間帯</th><th></th></tr>
+        </thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-add" onclick="addEmptyRow()">＋ 予定を1行追加</button>
     <button class="btn btn-secondary" onclick="exportToCalendar()">カレンダーに一括追加</button>
   </div>
 
   <script>
+    const DEFAULT_MODEL = "gemini-4-hydrogen";
     let shifts = [];
 
     window.onload = () => {
       const savedKey = localStorage.getItem("GEMINI_KEY");
+      const savedModel = localStorage.getItem("GEMINI_MODEL");
+      const savedThinking = localStorage.getItem("GEMINI_THINKING");
+
       if (savedKey) document.getElementById("apiKey").value = savedKey;
+      if (savedModel) document.getElementById("modelSelect").value = savedModel;
+      if (savedThinking !== null) document.getElementById("thinkingLevel").value = savedThinking;
     };
 
-    function saveKey() {
+    document.getElementById("modelSelect").addEventListener("change", (e) => {
+      localStorage.setItem("GEMINI_MODEL", e.target.value);
+    });
+    document.getElementById("thinkingLevel").addEventListener("change", (e) => {
+      localStorage.setItem("GEMINI_THINKING", e.target.value);
+    });
+
+    function saveSettings() {
       const key = document.getElementById("apiKey").value.trim();
+      const model = document.getElementById("modelSelect").value;
+      const thinking = document.getElementById("thinkingLevel").value;
+
       if (!key) return alert("APIキーを入力してください");
+
       localStorage.setItem("GEMINI_KEY", key);
-      alert("端末に保存しました。次回以降は入力不要です。");
+      localStorage.setItem("GEMINI_MODEL", model);
+      localStorage.setItem("GEMINI_THINKING", thinking);
+      alert("設定を端末に保存しました。次回以降は入力不要です。");
     }
 
     function triggerInput(id) {
@@ -92,21 +160,24 @@
       const status = document.getElementById("status");
       const btnScan = document.getElementById("btnScan");
       const btnGallery = document.getElementById("btnGallery");
+
+      const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
+      const modelId = document.getElementById("modelSelect").value || DEFAULT_MODEL;
+      const thinkingLevel = document.getElementById("thinkingLevel").value;
+      const thinkingLabel = thinkingLevel || "標準";
       
       btnScan.disabled = true;
       btnGallery.disabled = true;
-      status.innerText = "勤務表を解析中（森川様の行とシフト定義を突き合わせています）...";
+      status.innerText = `勤務表を解析中（${modelId} / 思考: ${thinkingLabel}）...`;
 
       let base64Image = null;
 
       try {
         base64Image = await toBase64(file);
-        const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
+        shifts = await analyzeWithGemini(base64Image, file.type, key, modelId, thinkingLevel);
         
-        shifts = await analyzeWithGemini(base64Image, file.type, key);
-        
-        renderTable(shifts);
-        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました。`;
+        renderTable();
+        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました（${modelId} / 思考: ${thinkingLabel}）。`;
         document.getElementById("resultCard").style.display = "block";
       } catch (err) {
         status.innerText = "エラー: " + err.message;
@@ -127,8 +198,8 @@
       });
     }
 
-    async function analyzeWithGemini(base64Data, mimeType, apiKey) {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    async function analyzeWithGemini(base64Data, mimeType, apiKey, modelId, thinkingLevel) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
 
@@ -152,6 +223,29 @@
 - titleは "(記号)勤"、"休み"、"有休" のいずれか（例: (A)勤）
 - startTimeとendTimeは "HH:mm" 形式（例: 06:00, 15:00）。休みや有休の場合は "00:00" としてください。`;
 
+      const generationConfig = {
+        response_mime_type: "application/json",
+        response_schema: {
+          type: "ARRAY",
+          items: {
+            type: "OBJECT",
+            properties: {
+              date: { type: "STRING", description: "YYYY-MM-DD" },
+              title: { type: "STRING", description: "例: (A)勤, 休み, 有休" },
+              startTime: { type: "STRING", description: "HH:mm" },
+              endTime: { type: "STRING", description: "HH:mm" }
+            },
+            required: ["date", "title", "startTime", "endTime"]
+          }
+        }
+      };
+
+      if (thinkingLevel) {
+        generationConfig.thinking_config = {
+          thinking_level: thinkingLevel
+        };
+      }
+
       const payload = {
         contents: [{
           parts: [
@@ -159,22 +253,7 @@
             { inline_data: { mime_type: mimeType, data: base64Data } }
           ]
         }],
-        generationConfig: {
-          response_mime_type: "application/json",
-          response_schema: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                date: { type: "STRING", description: "YYYY-MM-DD" },
-                title: { type: "STRING", description: "例: (A)勤, 休み, 有休" },
-                startTime: { type: "STRING", description: "HH:mm" },
-                endTime: { type: "STRING", description: "HH:mm" }
-              },
-              required: ["date", "title", "startTime", "endTime"]
-            }
-          }
-        }
+        generationConfig
       };
 
       const res = await fetch(endpoint, {
@@ -189,26 +268,170 @@
       }
 
       const json = await res.json();
-      return JSON.parse(json.candidates[0].content.parts[0].text);
+      const parts = json.candidates?.[0]?.content?.parts || [];
+      const text = parts
+        .filter(p => !p.thought && p.text)
+        .map(p => p.text)
+        .join("");
+
+      if (!text) {
+        throw new Error("解析結果のテキストを取得できませんでした。");
+      }
+
+      return JSON.parse(text);
     }
 
-    function renderTable(data) {
+    function isOffTitle(title) {
+      const t = (title || "").trim();
+      return t === "休み" || t === "有休";
+    }
+
+    function populateTimeCell(tdTime, item) {
+      tdTime.innerHTML = "";
+      if (isOffTitle(item.title)) {
+        const badge = document.createElement("span");
+        badge.className = "all-day-badge";
+        badge.textContent = "終日";
+        tdTime.appendChild(badge);
+        return;
+      }
+
+      // 休みから勤務名へ書き換えた直後の初期値補正
+      if (!item.startTime || (item.startTime === "00:00" && item.endTime === "00:00")) {
+        item.startTime = "09:00";
+        item.endTime = "18:00";
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "time-group";
+
+      const startInput = document.createElement("input");
+      startInput.type = "time";
+      startInput.className = "cell-input time-input";
+      startInput.value = item.startTime || "09:00";
+      startInput.addEventListener("change", (e) => {
+        item.startTime = e.target.value;
+      });
+
+      const sep = document.createElement("span");
+      sep.className = "time-sep";
+      sep.textContent = "〜";
+
+      const endInput = document.createElement("input");
+      endInput.type = "time";
+      endInput.className = "cell-input time-input";
+      endInput.value = item.endTime || "18:00";
+      endInput.addEventListener("change", (e) => {
+        item.endTime = e.target.value;
+      });
+
+      wrap.appendChild(startInput);
+      wrap.appendChild(sep);
+      wrap.appendChild(endInput);
+      tdTime.appendChild(wrap);
+    }
+
+    function renderTable() {
       const tbody = document.getElementById("resultBody");
       tbody.innerHTML = "";
-      data.forEach(item => {
+
+      shifts.forEach((item, index) => {
         const tr = document.createElement("tr");
-        
-        // 休み・有休の場合は時間帯を「終日」と表示する
-        const isOff = (item.title === "休み" || item.title === "有休");
-        const timeStr = isOff ? "終日" : `${item.startTime}〜${item.endTime}`;
-        
-        tr.innerHTML = `<td>${item.date}</td><td>${item.title}</td><td>${timeStr}</td>`;
+
+        // 日付セル
+        const tdDate = document.createElement("td");
+        const dateInput = document.createElement("input");
+        dateInput.type = "date";
+        dateInput.className = "cell-input date-input";
+        dateInput.value = item.date || "";
+        dateInput.addEventListener("change", (e) => {
+          item.date = e.target.value;
+        });
+        tdDate.appendChild(dateInput);
+
+        // シフト名セル
+        const tdTitle = document.createElement("td");
+        const titleInput = document.createElement("input");
+        titleInput.type = "text";
+        titleInput.className = "cell-input title-input";
+        titleInput.value = item.title || "";
+        titleInput.placeholder = "(A)勤";
+
+        // 時間帯セル
+        const tdTime = document.createElement("td");
+        let prevIsOff = isOffTitle(item.title);
+        populateTimeCell(tdTime, item);
+
+        const syncOffState = () => {
+          const nowIsOff = isOffTitle(item.title);
+          if (nowIsOff !== prevIsOff) {
+            prevIsOff = nowIsOff;
+            populateTimeCell(tdTime, item);
+          }
+        };
+
+        titleInput.addEventListener("input", (e) => {
+          item.title = e.target.value;
+          if (!e.isComposing) syncOffState();
+        });
+        titleInput.addEventListener("compositionend", () => {
+          item.title = titleInput.value;
+          syncOffState();
+        });
+        tdTitle.appendChild(titleInput);
+
+        // 削除ボタンセル
+        const tdAction = document.createElement("td");
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn-del";
+        delBtn.textContent = "✕";
+        delBtn.title = "この行を削除";
+        delBtn.addEventListener("click", () => {
+          shifts.splice(index, 1);
+          renderTable();
+        });
+        tdAction.appendChild(delBtn);
+
+        tr.appendChild(tdDate);
+        tr.appendChild(tdTitle);
+        tr.appendChild(tdTime);
+        tr.appendChild(tdAction);
         tbody.appendChild(tr);
       });
     }
 
+    function addEmptyRow() {
+      let nextDate = new Date().toISOString().split("T")[0];
+      if (shifts.length > 0 && shifts[shifts.length - 1].date) {
+        const last = new Date(shifts[shifts.length - 1].date + "T00:00:00Z");
+        if (!isNaN(last.getTime())) {
+          last.setUTCDate(last.getUTCDate() + 1);
+          nextDate = last.toISOString().split("T")[0];
+        }
+      }
+      shifts.push({
+        date: nextDate,
+        title: "(A)勤",
+        startTime: "09:00",
+        endTime: "18:00"
+      });
+      renderTable();
+    }
+
+    function addDays(dateStr, days) {
+      const dateObj = new Date(dateStr + "T00:00:00Z");
+      dateObj.setUTCDate(dateObj.getUTCDate() + days);
+      return dateObj.toISOString().split("T")[0].replace(/-/g, "");
+    }
+
     function exportToCalendar() {
-      if (!shifts.length) return;
+      if (!shifts.length) return alert("追加する予定がありません。");
+
+      const invalidIndex = shifts.findIndex(s => !s.date || !(s.title || "").trim());
+      if (invalidIndex !== -1) {
+        return alert(`${invalidIndex + 1}行目の日付またはシフト名が未入力です。`);
+      }
 
       let ics = [
         "BEGIN:VCALENDAR",
@@ -218,37 +441,38 @@
         "METHOD:PUBLISH"
       ];
 
-      shifts.forEach(s => {
+      shifts.forEach((s, idx) => {
         const d = s.date.replace(/-/g, "");
+        const title = s.title.trim();
         
         ics.push(
           "BEGIN:VEVENT",
-          `UID:${Date.now()}-${Math.random().toString(36).substr(2, 9)}@shift`,
+          `UID:${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 9)}@shift`,
           `DTSTAMP:${d}T000000Z`
         );
 
-        if (s.title === "休み" || s.title === "有休") {
-          // 終日イベントとして登録（カレンダーアプリで0:00〜0:00とならないようにする処理）
-          const dateObj = new Date(s.date);
-          dateObj.setDate(dateObj.getDate() + 1);
-          const nextD = dateObj.toISOString().split('T')[0].replace(/-/g, "");
-          
+        if (isOffTitle(title)) {
+          const nextD = addDays(s.date, 1);
           ics.push(
             `DTSTART;VALUE=DATE:${d}`,
             `DTEND;VALUE=DATE:${nextD}`
           );
         } else {
-          // 通常のシフト（時間指定）
-          const st = s.startTime.replace(":", "") + "00";
-          const et = s.endTime.replace(":", "") + "00";
+          const start = s.startTime || "09:00";
+          const end = s.endTime || "18:00";
+          const st = start.replace(":", "") + "00";
+          const et = end.replace(":", "") + "00";
+          // 終了時刻が開始時刻以前の場合は翌日終了（夜勤等）として扱う
+          const endD = (end <= start) ? addDays(s.date, 1) : d;
+
           ics.push(
             `DTSTART:${d}T${st}`,
-            `DTEND:${d}T${et}`
+            `DTEND:${endD}T${et}`
           );
         }
         
         ics.push(
-          `SUMMARY:${s.title}`,
+          `SUMMARY:${title}`,
           "END:VEVENT"
         );
       });
