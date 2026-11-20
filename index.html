@@ -12,6 +12,7 @@
     label:first-of-type { margin-top: 0; }
     input[type="password"], select { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; font-size: 0.95rem; margin-bottom: 8px; background: #ffffff; color: #0f172a; }
     .setting-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 4px; }
+    .setting-row label { margin-top: 4px; }
     @media (max-width: 420px) { .setting-row { grid-template-columns: 1fr; gap: 0; } }
     .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: bold; cursor: pointer; text-align: center; box-sizing: border-box; }
     .btn-primary { background: #2563eb; color: white; margin-bottom: 8px; }
@@ -21,6 +22,30 @@
     .btn:disabled { background: #94a3b8; border-color: #94a3b8; color: white; }
     .note { font-size: 0.75rem; color: #64748b; margin-top: 4px; line-height: 1.4; }
     #status { margin-top: 12px; font-size: 0.85rem; color: #475569; line-height: 1.4; font-weight: 500; }
+
+    /* プレビュー欄 */
+    .preview-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 12px; }
+    .preview-header { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .preview-title { font-size: 0.82rem; font-weight: 600; color: #334155; }
+    .preview-actions { display: flex; gap: 6px; }
+    .btn-mini { padding: 5px 9px; font-size: 0.75rem; font-weight: 600; border-radius: 6px; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; cursor: pointer; }
+    .btn-mini-primary { border-color: #2563eb; color: #2563eb; }
+    .btn-mini-danger { border-color: #fecaca; background: #fef2f2; color: #dc2626; }
+    .preview-body { margin-top: 8px; text-align: center; }
+    .preview-thumb { width: 100%; max-height: 190px; object-fit: contain; border-radius: 6px; border: 1px solid #cbd5e1; background: #e2e8f0; cursor: zoom-in; display: block; }
+    .preview-hint { font-size: 0.72rem; color: #64748b; margin-top: 5px; }
+
+    /* 拡大モーダル */
+    .modal-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(15, 23, 42, 0.92); flex-direction: column; }
+    .modal-overlay.open { display: flex; }
+    .modal-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(15, 23, 42, 0.95); color: #ffffff; gap: 8px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.12); }
+    .modal-zoom-controls { display: flex; align-items: center; gap: 6px; }
+    .modal-btn { background: rgba(255,255,255,0.14); color: #ffffff; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; padding: 6px 11px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .modal-zoom-label { font-size: 0.82rem; min-width: 44px; text-align: center; color: #e2e8f0; }
+    .modal-scroll-area { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 12px; box-sizing: border-box; }
+    .modal-img { display: block; width: 100%; max-width: none; height: auto; margin: 0 auto; border-radius: 4px; cursor: zoom-in; }
+
+    /* 抽出結果テーブル */
     .table-wrap { overflow-x: auto; margin-top: 12px; }
     table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
     th, td { border-bottom: 1px solid #e2e8f0; padding: 8px 4px; text-align: left; vertical-align: middle; }
@@ -50,14 +75,13 @@
     <label for="apiKey">Google AI StudioのAPIキー</label>
     <input type="password" id="apiKey" placeholder="AIzaSy..." />
 
+    <label for="modelSelect">使用モデル</label>
+    <select id="modelSelect">
+      <option value="gemini-4-hydrogen">Gemini 4 Hydrogen（無料枠対応・高速）</option>
+      <option value="gemini-4-neon">Gemini 4 Neon（有料枠専用・高精度）</option>
+    </select>
+
     <div class="setting-row">
-      <div>
-        <label for="modelSelect">使用モデル</label>
-        <select id="modelSelect">
-          <option value="gemini-4-hydrogen">Gemini 4 Hydrogen（無料枠対応・高速）</option>
-          <option value="gemini-4-neon">Gemini 4 Neon（有料枠専用・高精度）</option>
-        </select>
-      </div>
       <div>
         <label for="thinkingLevel">思考レベル</label>
         <select id="thinkingLevel">
@@ -67,11 +91,20 @@
           <option value="high">高（高精度・複雑な表向け）</option>
         </select>
       </div>
+      <div>
+        <label for="imageQuality">送信画質（自動圧縮）</label>
+        <select id="imageQuality">
+          <option value="balanced">標準（2048px・推奨）</option>
+          <option value="high">高精細（2800px・細かい表）</option>
+          <option value="compact">軽量（1536px・通信節約）</option>
+          <option value="original">圧縮なし（原寸のまま）</option>
+        </select>
+      </div>
     </div>
 
     <button class="btn btn-primary" onclick="saveSettings()" style="padding: 10px; font-size: 0.85rem;">設定を端末に保存</button>
     <div class="note">
-      ※ モデルと思考レベルは変更時にも自動保存されます。Neonを利用する場合は、課金設定済みのAPIキーが必要です。
+      ※ モデル・思考レベル・送信画質は変更時にも自動保存されます。Neonを利用する場合は、課金設定済みのAPIキーが必要です。
     </div>
   </div>
 
@@ -88,13 +121,30 @@
     </button>
     
     <div class="note">
-      ※ どちらの方法でも画像データはブラウザのメモリ内でのみ一時処理され、解析後に即座に消去されます。アプリ内・サーバー上への保存や蓄積は一切行われません。
+      ※ 画像データはブラウザのメモリ内でのみリサイズ・一時処理され、アプリ内・サーバー上への保存は一切行われません。解析用データは直後に消去され、確認用プレビューもカレンダー追加時または画面を閉じた際に自動で破棄されます。
     </div>
     <div id="status">準備完了</div>
   </div>
 
   <div class="card" id="resultCard" style="display: none;">
     <h1>3. 抽出結果（森川 瑛理 様）</h1>
+
+    <!-- 勤務表プレビュー欄（メモリ一時保持・処理後破棄） -->
+    <div class="preview-box" id="previewSection" style="display: none;">
+      <div class="preview-header">
+        <span class="preview-title">📄 確認用プレビュー（一時表示）</span>
+        <div class="preview-actions">
+          <button type="button" class="btn-mini btn-mini-primary" onclick="openImageModal()">🔍 拡大</button>
+          <button type="button" class="btn-mini" id="btnTogglePreview" onclick="togglePreviewBody()">畳む</button>
+          <button type="button" class="btn-mini btn-mini-danger" onclick="clearPreview(true)">消去</button>
+        </div>
+      </div>
+      <div class="preview-body" id="previewBody">
+        <img id="previewThumb" class="preview-thumb" alt="スキャンした勤務表のプレビュー" onclick="openImageModal()" />
+        <div class="preview-hint">画像をタップすると全画面で拡大確認できます（カレンダー追加時に自動破棄）</div>
+      </div>
+    </div>
+
     <div class="note">
       ※ 各項目をタップして直接修正できます。「休み」「有休」にすると自動で終日扱いになります。
     </div>
@@ -110,19 +160,54 @@
     <button class="btn btn-secondary" onclick="exportToCalendar()">カレンダーに一括追加</button>
   </div>
 
+  <!-- 拡大確認モーダル -->
+  <div class="modal-overlay" id="imageModal" role="dialog" aria-modal="true" aria-label="勤務表の拡大プレビュー">
+    <div class="modal-toolbar">
+      <div class="modal-zoom-controls">
+        <button type="button" class="modal-btn" onclick="changeZoom(-0.5)">−</button>
+        <span class="modal-zoom-label" id="zoomLabel">100%</span>
+        <button type="button" class="modal-btn" onclick="changeZoom(0.5)">＋</button>
+        <button type="button" class="modal-btn" onclick="setZoom(1)">リセット</button>
+      </div>
+      <button type="button" class="modal-btn" onclick="closeImageModal()">✕ 閉じる</button>
+    </div>
+    <div class="modal-scroll-area" id="modalScrollArea">
+      <img id="modalImg" class="modal-img" alt="拡大表示中の勤務表" onclick="toggleQuickZoom()" />
+    </div>
+  </div>
+
   <script>
     const DEFAULT_MODEL = "gemini-4-hydrogen";
+    const MAX_RETRIES = 3;
+    const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+    const IMAGE_PRESETS = {
+      balanced: { maxSide: 2048, quality: 0.85 },
+      high:     { maxSide: 2800, quality: 0.90 },
+      compact:  { maxSide: 1536, quality: 0.80 },
+      original: null
+    };
+
     let shifts = [];
+    let previewObjectUrl = null;
+    let currentZoom = 1;
 
     window.onload = () => {
       const savedKey = localStorage.getItem("GEMINI_KEY");
       const savedModel = localStorage.getItem("GEMINI_MODEL");
       const savedThinking = localStorage.getItem("GEMINI_THINKING");
+      const savedQuality = localStorage.getItem("GEMINI_IMG_QUALITY");
 
       if (savedKey) document.getElementById("apiKey").value = savedKey;
       if (savedModel) document.getElementById("modelSelect").value = savedModel;
       if (savedThinking !== null) document.getElementById("thinkingLevel").value = savedThinking;
+      if (savedQuality && (savedQuality in IMAGE_PRESETS)) {
+        document.getElementById("imageQuality").value = savedQuality;
+      }
     };
+
+    // ページ離脱・リロード時にメモリ上のプレビューを確実に破棄
+    window.addEventListener("pagehide", () => clearPreview(false));
+    window.addEventListener("beforeunload", () => clearPreview(false));
 
     document.getElementById("modelSelect").addEventListener("change", (e) => {
       localStorage.setItem("GEMINI_MODEL", e.target.value);
@@ -130,17 +215,22 @@
     document.getElementById("thinkingLevel").addEventListener("change", (e) => {
       localStorage.setItem("GEMINI_THINKING", e.target.value);
     });
+    document.getElementById("imageQuality").addEventListener("change", (e) => {
+      localStorage.setItem("GEMINI_IMG_QUALITY", e.target.value);
+    });
 
     function saveSettings() {
       const key = document.getElementById("apiKey").value.trim();
       const model = document.getElementById("modelSelect").value;
       const thinking = document.getElementById("thinkingLevel").value;
+      const quality = document.getElementById("imageQuality").value;
 
       if (!key) return alert("APIキーを入力してください");
 
       localStorage.setItem("GEMINI_KEY", key);
       localStorage.setItem("GEMINI_MODEL", model);
       localStorage.setItem("GEMINI_THINKING", thinking);
+      localStorage.setItem("GEMINI_IMG_QUALITY", quality);
       alert("設定を端末に保存しました。次回以降は入力不要です。");
     }
 
@@ -148,6 +238,197 @@
       const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
       if (!key) return alert("先にAPIキーを入力して保存してください。");
       document.getElementById(id).click();
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return `${bytes}B`;
+      if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function getRetryDelayMs(attempt, retryAfterHeader) {
+      if (retryAfterHeader) {
+        const seconds = Number(retryAfterHeader);
+        if (!Number.isNaN(seconds) && seconds > 0) {
+          return Math.min(seconds * 1000, 30000);
+        }
+        const retryDate = Date.parse(retryAfterHeader);
+        if (!Number.isNaN(retryDate)) {
+          const diff = retryDate - Date.now();
+          if (diff > 0) return Math.min(diff, 30000);
+        }
+      }
+      // 指数バックオフ（1回目: 約3秒、2回目: 約6秒、3回目: 約12秒）＋揺らぎ
+      const baseMs = 3000 * Math.pow(2, attempt - 1);
+      const jitterMs = Math.floor(Math.random() * 800);
+      return baseMs + jitterMs;
+    }
+
+    async function waitWithCountdown(totalMs, onTick) {
+      const endTime = Date.now() + totalMs;
+      while (true) {
+        const leftMs = endTime - Date.now();
+        if (leftMs <= 0) break;
+        if (onTick) onTick(Math.ceil(leftMs / 1000));
+        await sleep(Math.min(1000, leftMs));
+      }
+    }
+
+    // 送信前の画像リサイズ・JPEG圧縮（メモリ内で完結しCanvasは即時解放）
+    async function compressImage(file, presetKey) {
+      const preset = IMAGE_PRESETS[presetKey];
+      if (!preset) {
+        const base64 = await toBase64(file);
+        return {
+          base64,
+          mimeType: file.type || "image/jpeg",
+          blob: file,
+          origBytes: file.size,
+          compBytes: file.size,
+          width: null,
+          height: null,
+          compressed: false
+        };
+      }
+
+      const tempUrl = URL.createObjectURL(file);
+      try {
+        const img = await new Promise((resolve, reject) => {
+          const el = new Image();
+          el.onload = () => resolve(el);
+          el.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+          el.src = tempUrl;
+        });
+
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+        const longest = Math.max(srcW, srcH);
+        const scale = longest > preset.maxSide ? preset.maxSide / longest : 1;
+        const dstW = Math.max(1, Math.round(srcW * scale));
+        const dstH = Math.max(1, Math.round(srcH * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = dstW;
+        canvas.height = dstH;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, dstW, dstH);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, dstW, dstH);
+
+        const compressedBlob = await new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (b) => (b ? resolve(b) : reject(new Error("画像の圧縮に失敗しました"))),
+            "image/jpeg",
+            preset.quality
+          );
+        });
+
+        canvas.width = 0;
+        canvas.height = 0;
+
+        const useOriginal = (scale === 1 && compressedBlob.size >= file.size && file.type);
+        const finalBlob = useOriginal ? file : compressedBlob;
+        const base64 = await toBase64(finalBlob);
+
+        return {
+          base64,
+          mimeType: useOriginal ? file.type : "image/jpeg",
+          blob: finalBlob,
+          origBytes: file.size,
+          compBytes: finalBlob.size,
+          width: useOriginal ? srcW : dstW,
+          height: useOriginal ? srcH : dstH,
+          compressed: !useOriginal
+        };
+      } catch (err) {
+        const base64 = await toBase64(file);
+        return {
+          base64,
+          mimeType: file.type || "image/jpeg",
+          blob: file,
+          origBytes: file.size,
+          compBytes: file.size,
+          width: null,
+          height: null,
+          compressed: false
+        };
+      } finally {
+        URL.revokeObjectURL(tempUrl);
+      }
+    }
+
+    // プレビューの一時設定と破棄
+    function setPreviewImage(blob) {
+      clearPreview(false);
+      previewObjectUrl = URL.createObjectURL(blob);
+      document.getElementById("previewThumb").src = previewObjectUrl;
+      document.getElementById("modalImg").src = previewObjectUrl;
+      document.getElementById("previewSection").style.display = "block";
+      document.getElementById("previewBody").style.display = "block";
+      document.getElementById("btnTogglePreview").textContent = "畳む";
+    }
+
+    function clearPreview(notifyStatus = false) {
+      closeImageModal();
+      if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+      }
+      const thumb = document.getElementById("previewThumb");
+      const modalImg = document.getElementById("modalImg");
+      if (thumb) thumb.removeAttribute("src");
+      if (modalImg) modalImg.removeAttribute("src");
+
+      const section = document.getElementById("previewSection");
+      if (section) section.style.display = "none";
+
+      if (notifyStatus) {
+        document.getElementById("status").innerText = "確認用プレビュー画像をメモリから破棄しました。";
+      }
+    }
+
+    function togglePreviewBody() {
+      const body = document.getElementById("previewBody");
+      const btn = document.getElementById("btnTogglePreview");
+      const isHidden = body.style.display === "none";
+      body.style.display = isHidden ? "block" : "none";
+      btn.textContent = isHidden ? "畳む" : "表示";
+    }
+
+    function openImageModal() {
+      if (!previewObjectUrl) return;
+      setZoom(1);
+      document.getElementById("imageModal").classList.add("open");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeImageModal() {
+      const modal = document.getElementById("imageModal");
+      if (modal) modal.classList.remove("open");
+      document.body.style.overflow = "";
+    }
+
+    function setZoom(level) {
+      currentZoom = Math.min(4, Math.max(1, Math.round(level * 10) / 10));
+      const modalImg = document.getElementById("modalImg");
+      modalImg.style.width = `${currentZoom * 100}%`;
+      modalImg.style.cursor = currentZoom > 1 ? "zoom-out" : "zoom-in";
+      document.getElementById("zoomLabel").textContent = `${Math.round(currentZoom * 100)}%`;
+    }
+
+    function changeZoom(delta) {
+      setZoom(currentZoom + delta);
+    }
+
+    function toggleQuickZoom() {
+      setZoom(currentZoom === 1 ? 2.5 : 1);
     }
 
     document.getElementById("fileInputCamera").addEventListener("change", handleFileSelect);
@@ -164,41 +445,63 @@
       const key = localStorage.getItem("GEMINI_KEY") || document.getElementById("apiKey").value.trim();
       const modelId = document.getElementById("modelSelect").value || DEFAULT_MODEL;
       const thinkingLevel = document.getElementById("thinkingLevel").value;
+      const qualityPreset = document.getElementById("imageQuality").value || "balanced";
       const thinkingLabel = thinkingLevel || "標準";
-      
+
+      clearPreview(false);
       btnScan.disabled = true;
       btnGallery.disabled = true;
-      status.innerText = `勤務表を解析中（${modelId} / 思考: ${thinkingLabel}）...`;
+      status.innerText = "画像を送信サイズへ最適化（リサイズ・圧縮）中...";
 
-      let base64Image = null;
+      let prepared = null;
 
       try {
-        base64Image = await toBase64(file);
-        shifts = await analyzeWithGemini(base64Image, file.type, key, modelId, thinkingLevel);
-        
+        prepared = await compressImage(file, qualityPreset);
+
+        const sizeNote = prepared.compressed
+          ? `${formatBytes(prepared.origBytes)} → ${formatBytes(prepared.compBytes)} / ${prepared.width}×${prepared.height}`
+          : `${formatBytes(prepared.compBytes)}（原寸）`;
+
+        status.innerText = `勤務表を解析中（${sizeNote} / ${modelId} / 思考: ${thinkingLabel}）...`;
+
+        shifts = await analyzeWithGemini(
+          prepared.base64,
+          prepared.mimeType,
+          key,
+          modelId,
+          thinkingLevel,
+          (msg) => { status.innerText = msg; }
+        );
+
+        setPreviewImage(prepared.blob);
         renderTable();
-        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました（${modelId} / 思考: ${thinkingLabel}）。`;
+        status.innerText = `解析成功: ${shifts.length}件の予定を検出しました（${sizeNote} / ${modelId}）。`;
         document.getElementById("resultCard").style.display = "block";
       } catch (err) {
+        clearPreview(false);
         status.innerText = "エラー: " + err.message;
       } finally {
-        base64Image = null;
+        if (prepared) {
+          prepared.base64 = null;
+          prepared.blob = null;
+          prepared = null;
+        }
         e.target.value = "";
         btnScan.disabled = false;
         btnGallery.disabled = false;
       }
     }
 
-    function toBase64(file) {
+    function toBase64(blob) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result.split(',')[1]);
         reader.onerror = reject;
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(blob);
       });
     }
 
-    async function analyzeWithGemini(base64Data, mimeType, apiKey, modelId, thinkingLevel) {
+    async function analyzeWithGemini(base64Data, mimeType, apiKey, modelId, thinkingLevel, onStatusUpdate) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
 
       const prompt = `画像は「作業計画実施表」という月間の勤務表です。以下の厳密なルールに従って解析し、JSON配列を出力してください。
@@ -256,29 +559,79 @@
         generationConfig
       };
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      let lastError = null;
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || `API通信失敗 (${res.status})`);
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        let retryAfterHeader = null;
+        let shouldRetry = false;
+        let reasonLabel = "";
+
+        try {
+          if (attempt > 0 && onStatusUpdate) {
+            onStatusUpdate(`勤務表を再解析中（リトライ ${attempt}/${MAX_RETRIES}回目 / ${modelId}）...`);
+          }
+
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (res.ok) {
+            const json = await res.json();
+            const parts = json.candidates?.[0]?.content?.parts || [];
+            const text = parts
+              .filter(p => !p.thought && p.text)
+              .map(p => p.text)
+              .join("");
+
+            if (!text) {
+              throw new Error("解析結果のテキストを取得できませんでした。");
+            }
+
+            return JSON.parse(text);
+          }
+
+          const errJson = await res.json().catch(() => ({}));
+          const errMsg = errJson.error?.message || `API通信失敗 (${res.status})`;
+          retryAfterHeader = res.headers.get("Retry-After");
+
+          const isOverloadedMsg = /overloaded|high demand|temporarily unavailable|resource exhausted|rate limit/i.test(errMsg);
+          if (RETRYABLE_STATUSES.has(res.status) || isOverloadedMsg) {
+            shouldRetry = true;
+            reasonLabel = res.status === 429
+              ? "API利用上限・混雑 (429)"
+              : `APIサーバー混雑 (${res.status})`;
+            lastError = new Error(errMsg);
+          } else {
+            // APIキー不正(400/401/403)やモデル名誤り(404)等はリトライせず即時エラー
+            throw new Error(errMsg);
+          }
+        } catch (err) {
+          if (!shouldRetry) {
+            if (err instanceof TypeError) {
+              shouldRetry = true;
+              reasonLabel = "一時的な通信エラー";
+              lastError = new Error("ネットワーク通信に失敗しました。電波状況をご確認ください。");
+            } else {
+              throw err;
+            }
+          }
+        }
+
+        if (shouldRetry && attempt < MAX_RETRIES) {
+          const nextAttempt = attempt + 1;
+          const delayMs = getRetryDelayMs(nextAttempt, retryAfterHeader);
+          await waitWithCountdown(delayMs, (sec) => {
+            if (onStatusUpdate) {
+              onStatusUpdate(`${reasonLabel}のため待機中... ${sec}秒後に自動リトライします（${nextAttempt}/${MAX_RETRIES}回目）`);
+            }
+          });
+          continue;
+        }
+
+        throw new Error(`自動リトライ（${MAX_RETRIES}回）後も失敗しました: ${lastError?.message || "不明なエラー"}`);
       }
-
-      const json = await res.json();
-      const parts = json.candidates?.[0]?.content?.parts || [];
-      const text = parts
-        .filter(p => !p.thought && p.text)
-        .map(p => p.text)
-        .join("");
-
-      if (!text) {
-        throw new Error("解析結果のテキストを取得できませんでした。");
-      }
-
-      return JSON.parse(text);
     }
 
     function isOffTitle(title) {
@@ -296,7 +649,6 @@
         return;
       }
 
-      // 休みから勤務名へ書き換えた直後の初期値補正
       if (!item.startTime || (item.startTime === "00:00" && item.endTime === "00:00")) {
         item.startTime = "09:00";
         item.endTime = "18:00";
@@ -338,7 +690,6 @@
       shifts.forEach((item, index) => {
         const tr = document.createElement("tr");
 
-        // 日付セル
         const tdDate = document.createElement("td");
         const dateInput = document.createElement("input");
         dateInput.type = "date";
@@ -349,7 +700,6 @@
         });
         tdDate.appendChild(dateInput);
 
-        // シフト名セル
         const tdTitle = document.createElement("td");
         const titleInput = document.createElement("input");
         titleInput.type = "text";
@@ -357,7 +707,6 @@
         titleInput.value = item.title || "";
         titleInput.placeholder = "(A)勤";
 
-        // 時間帯セル
         const tdTime = document.createElement("td");
         let prevIsOff = isOffTitle(item.title);
         populateTimeCell(tdTime, item);
@@ -380,7 +729,6 @@
         });
         tdTitle.appendChild(titleInput);
 
-        // 削除ボタンセル
         const tdAction = document.createElement("td");
         const delBtn = document.createElement("button");
         delBtn.type = "button";
@@ -462,7 +810,6 @@
           const end = s.endTime || "18:00";
           const st = start.replace(":", "") + "00";
           const et = end.replace(":", "") + "00";
-          // 終了時刻が開始時刻以前の場合は翌日終了（夜勤等）として扱う
           const endD = (end <= start) ? addDays(s.date, 1) : d;
 
           ics.push(
@@ -486,6 +833,10 @@
       a.download = "shift.ics";
       a.click();
       URL.revokeObjectURL(url);
+
+      // カレンダー出力完了後にプレビュー画像もメモリから自動破棄
+      clearPreview(false);
+      document.getElementById("status").innerText = `カレンダー用ファイル（${shifts.length}件）を出力し、確認用画像をメモリから破棄しました。`;
     }
   </script>
 </body>
